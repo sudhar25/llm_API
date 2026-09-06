@@ -5,6 +5,7 @@ from groq import Groq
 from dotenv import load_dotenv
 import os
 from .auth import create_jwt_token, verify_token
+load_dotenv()
 from sqlalchemy.orm import Session
 from .database import engine, Base, get_db
 from . import models
@@ -13,7 +14,7 @@ from .cache import get_cached_response, set_cached_response
 
 Base.metadata.create_all(bind=engine)
 
-load_dotenv()
+
 
 app = FastAPI()
 
