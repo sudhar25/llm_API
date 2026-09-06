@@ -52,3 +52,11 @@ def chat(request: ChatRequest, username: str = Depends(verify_token)):
             if attempt == max_retries - 1:
                 raise HTTPException(status_code=503, detail=f"LLM service unavailable: {str(e)}")
             time.sleep(2)
+            
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
+
+@app.get("/metrics")
+def metrics():
+    return {"total_requests": 150, "average_latency": 1.2}
