@@ -8,6 +8,7 @@ from .auth import create_jwt_token, verify_token
 from sqlalchemy.orm import Session
 from .database import engine, Base, get_db
 from . import models
+from sqlalchemy import func
 
 Base.metadata.create_all(bind=engine)
 
@@ -77,5 +78,13 @@ def health_check():
     return {"status": "healthy"}
 
 @app.get("/metrics")
-def metrics():
-    return {"total_requests": 150, "average_latency": 1.2}
+def get_metrics(db: Session = Depends(get_db)):
+    total_requests = db.query(func.count(models.ChatLog.id)).scalar() or 0
+    avg_latency = db.query(func.avg(models.ChatLog.latency)).scalar() or 0.0
+    total_tokens = db.query(func.sum(models.ChatLog.tokens_used)).scalar() or 0
+
+    return {
+        "total_requests": total_requests,
+        "average_latency_seconds": round(float(avg_latency), 2),
+        "total_tokens_used": int(total_tokens)
+    }
