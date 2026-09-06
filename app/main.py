@@ -5,6 +5,11 @@ from groq import Groq
 from dotenv import load_dotenv
 import os
 from .auth import create_jwt_token, verify_token
+from sqlalchemy.orm import Session
+from .database import engine, Base, get_db
+from . import models
+
+Base.metadata.create_all(bind=engine)
 
 load_dotenv()
 
@@ -19,17 +24,17 @@ class ChatRequest(BaseModel):
     
 
 @app.post("/auth/login")
-def login(data: LoginData):
+def login(data: LoginData, db: Session = Depends(get_db)):
     if data.username == "admin" and data.password == "password":
         token = create_jwt_token({"sub": data.username})
         return {"access_token": token, "token_type": "bearer"}
     raise HTTPException(status_code=401, detail="Invalid credentials")
 
 @app.post("/chat")
-def chat(request: ChatRequest, username: str = Depends(verify_token)):
+def chat(request: ChatRequest, username: str = Depends(verify_token), db: Session = Depends(get_db)):
     start_time = time.time()
-    
     max_retries = 3
+    
     for attempt in range(max_retries):
         try:
             response = client.chat.completions.create(
@@ -44,6 +49,17 @@ def chat(request: ChatRequest, username: str = Depends(verify_token)):
             answer = response.choices[0].message.content
             tokens = response.usage.total_tokens if response.usage else 0
             latency = time.time() - start_time
+            
+            # Persist metrics to the database
+            chat_log = models.ChatLog(
+                username=username,
+                question=request.question,
+                answer=answer,
+                latency=latency,
+                tokens_used=tokens
+            )
+            db.add(chat_log)
+            db.commit()
             
             return {
                 "user": username,
