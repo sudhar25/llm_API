@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+PyJWT
+groq
+python-dotenv
+sqlalchemy
+psycopg2-binary
+redis
+pytest
+httpx
