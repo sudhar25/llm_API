@@ -3,13 +3,14 @@ from datetime import datetime, timedelta
 from fastapi import HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import os
+from datetime import datetime, timedelta, timezone
 
 SECRET_KEY = os.getenv("SECRET_KEY", "fallback_test_key_only")
 ALGORITHM = "HS256"
 security = HTTPBearer()
 
 def create_jwt_token(data: dict):
-    expire = datetime.utcnow() + timedelta(hours=1)
+    expire = datetime.now(timezone.utc) + timedelta(hours=1)
     to_encode = data.copy()
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
