@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from .database import engine, Base, get_db
 from . import models
 from sqlalchemy import func
+from .cache import get_cached_response, set_cached_response
 
 Base.metadata.create_all(bind=engine)
 
@@ -33,9 +34,19 @@ def login(data: LoginData, db: Session = Depends(get_db)):
 
 @app.post("/chat")
 def chat(request: ChatRequest, username: str = Depends(verify_token), db: Session = Depends(get_db)):
+    cache_key = f"prompt:{request.question.strip().lower()}"
+    cached_answer = get_cached_response(cache_key)
+
+    if cached_answer:
+        return {
+            "user": username,
+            "answer": cached_answer,
+            "metrics": {"latency_seconds": 0.0, "tokens_used": 0, "source": "cache"}
+        }
+
     start_time = time.time()
     max_retries = 3
-    
+
     for attempt in range(max_retries):
         try:
             response = client.chat.completions.create(
@@ -46,12 +57,15 @@ def chat(request: ChatRequest, username: str = Depends(verify_token), db: Sessio
                 ],
                 timeout=10
             )
-            
+
             answer = response.choices[0].message.content
             tokens = response.usage.total_tokens if response.usage else 0
             latency = time.time() - start_time
-            
-            # Persist metrics to the database
+
+            # Store in Redis cache for 5 minutes
+            set_cached_response(cache_key, answer, expiration_seconds=300)
+
+            # Persist metrics to database
             chat_log = models.ChatLog(
                 username=username,
                 question=request.question,
@@ -61,13 +75,13 @@ def chat(request: ChatRequest, username: str = Depends(verify_token), db: Sessio
             )
             db.add(chat_log)
             db.commit()
-            
+
             return {
                 "user": username,
                 "answer": answer,
-                "metrics": {"latency_seconds": round(latency, 2), "tokens_used": tokens}
+                "metrics": {"latency_seconds": round(latency, 2), "tokens_used": tokens, "source": "llm"}
             }
-            
+
         except Exception as e:
             if attempt == max_retries - 1:
                 raise HTTPException(status_code=503, detail=f"LLM service unavailable: {str(e)}")

@@ -10,7 +10,6 @@ try:
     redis_client = redis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=1)
     redis_client.ping()
 except Exception:
-    # Graceful degradation if Redis is not running locally
     redis_client = None
 
 def get_cached_response(key: str):
